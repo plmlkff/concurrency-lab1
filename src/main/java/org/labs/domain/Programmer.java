@@ -40,6 +40,7 @@ public class Programmer implements Runnable {
     @Override
     public void run() {
         try {
+            init();
             while (state != State.STOPPED){
                 switch (state) {
                     case DISCUSSING -> discuss();
@@ -50,6 +51,10 @@ public class Programmer implements Runnable {
         } catch (InterruptedException e) {
             System.out.printf("Поток <%s> прерван с ошибкой: %s\n", Thread.currentThread().getName(), e);
         }
+    }
+
+    private void init() throws InterruptedException {
+        createOrder();
     }
 
     private void discuss() throws InterruptedException {

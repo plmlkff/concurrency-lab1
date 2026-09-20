@@ -24,7 +24,10 @@ public class Waiter implements Runnable{
             while (true) {
                 var order = ordersQueue.take();
 
-                if (dishCapacity.getAndDecrement() <= 0) order.clientCallback().accept(OrderState.NO_FOOD);
+                if (dishCapacity.getAndDecrement() <= 0) {
+                    order.clientCallback().accept(OrderState.NO_FOOD);
+                    continue;
+                }
 
                 Thread.sleep(cfg.orderPreparingTime());
 
