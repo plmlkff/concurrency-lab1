@@ -10,7 +10,6 @@ import java.io.PrintWriter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.BlockingQueue;
 
 public class MetricsCollector {
@@ -41,37 +40,32 @@ public class MetricsCollector {
         }
 
         int queueSize = ordersQueue.size();
-        int remainingCapacity = ordersQueue.remainingCapacity();
-        long queueCapacity = (long) queueSize + remainingCapacity;
 
         var report = new StringBuilder();
         report.append(String.format(
-            Locale.ROOT,
-            "programmers=%d | waiters=%d | discuss=%dms | eat=%dms | prepare=%dms%n",
+            "%s | programmers=%d | waiters=%d | discuss=%dms | eat=%dms | prepare=%dms%n",
+            LocalDateTime.now().format(TIMESTAMP_FORMAT),
             orchestratorConfig.programmersCount(),
             orchestratorConfig.waitersCount(),
             programmerConfig.discussionTime(),
             programmerConfig.eatingTime(),
             waiterConfig.orderPreparingTime()
         ));
-        report.append(String.format(
-            Locale.ROOT,
-            "%s | eaten=%d / total=%d%n",
-            LocalDateTime.now().format(TIMESTAMP_FORMAT),
-            totalEaten,
-            orchestratorConfig.dishCapacity()
-        ));
-        appendQueueMetrics(report, queueSize, remainingCapacity, queueCapacity);
         report.append("#  state        ateDishes\n");
         for (int i = 0; i < programmers.size(); i++) {
             report.append(String.format(
-                Locale.ROOT,
-                "%-3d%-13s%d%n",
+                "%-5d%-13s%d%n",
                 i + 1,
                 states[i],
                 eatenDishes[i]
             ));
         }
+        report.append(String.format(
+            "eaten=%d / total=%d%n",
+            totalEaten,
+            orchestratorConfig.dishCapacity()
+        ));
+        appendQueueMetrics(report, queueSize);
 
         out.print(report);
         out.flush();
@@ -79,38 +73,11 @@ public class MetricsCollector {
 
     private void appendQueueMetrics(
         StringBuilder report,
-        int size,
-        int remainingCapacity,
-        long capacity
+        int size
     ) {
-        if (capacity >= Integer.MAX_VALUE) {
-            report.append(String.format(
-                Locale.ROOT,
-                "orders: size=%d | remaining=%d | capacity=unbounded | occupancy=n/a%n",
-                size,
-                remainingCapacity
-            ));
-            return;
-        }
-
-        if (capacity == 0) {
-            report.append(String.format(
-                Locale.ROOT,
-                "orders: size=%d | remaining=%d | capacity≈0 | occupancy=n/a%n",
-                size,
-                remainingCapacity
-            ));
-            return;
-        }
-
-        double occupancy = 100.0 * size / capacity;
         report.append(String.format(
-            Locale.ROOT,
-            "orders: size=%d | remaining=%d | capacity≈%d | occupancy≈%.1f%%%n",
-            size,
-            remainingCapacity,
-            capacity,
-            occupancy
+            "orders: size=%d",
+            size
         ));
     }
 }

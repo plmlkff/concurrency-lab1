@@ -62,9 +62,9 @@ public class Programmer implements Runnable {
         state = State.READY;
     }
 
-    private void waitEatSignal() {
-        var signal = channel.input().poll();
-        if (!Signal.EAT.equals(signal)) throw new IllegalStateException("EAT signal is not supported in the input programmer channel.");
+    private void waitEatSignal() throws InterruptedException {
+        var signal = channel.input().take();
+        if (!Signal.EAT.equals(signal)) throw new IllegalStateException("Signal <%s> is not supported in the input programmer channel.".formatted(signal));
         state = State.EATING;
     }
 

@@ -33,9 +33,7 @@ public class Waiter implements Runnable{
 
                 order.clientCallback().accept(OrderState.READY);
             }
-        } catch (InterruptedException e) {
-            System.err.printf("Ошибка получения заказа в потоке: %s\n", Thread.currentThread().getName());
-        }
+        } catch (InterruptedException ignore) {}
 
     }
 }
