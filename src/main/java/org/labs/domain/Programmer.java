@@ -16,8 +16,8 @@ public class Programmer implements Runnable {
     private static final int LEFT = 0;
     private static final int RIGHT = 1;
 
-    private State state = State.DISCUSSING;
-    private int ateDishes = 0;
+    private volatile State state = State.DISCUSSING;
+    private volatile int ateDishes = 0;
     private final ProgrammerConfig config;
     private final Spoon[] spoons = new Spoon[2];
     private final OrderService orderService;
@@ -63,7 +63,8 @@ public class Programmer implements Runnable {
     }
 
     private void waitEatSignal() {
-        channel.input().poll();
+        var signal = channel.input().poll();
+        if (!Signal.EAT.equals(signal)) throw new IllegalStateException("EAT signal is not supported in the input programmer channel.");
         state = State.EATING;
     }
 
@@ -100,6 +101,10 @@ public class Programmer implements Runnable {
 
     public int getAteDishes() {
         return ateDishes;
+    }
+
+    public State getState() {
+        return state;
     }
 
     public enum State {

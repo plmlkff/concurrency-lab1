@@ -5,9 +5,11 @@ import org.labs.domain.Spoon;
 import org.labs.domain.Waiter;
 import org.labs.logic.Orchestrator;
 import org.labs.logic.command.SignalChannel;
+import org.labs.logic.metric.MetricsCollector;
 import org.labs.logic.order.Order;
 import org.labs.logic.order.OrderService;
 
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
@@ -50,6 +52,22 @@ public final class OrchestratorFactory {
             waiters.add(new Waiter(waiterConfig, ordersQueue, dishesLeft));
         }
 
-        return new Orchestrator(programmers, spoons, waiters, channels);
+        var metricsCollector = new MetricsCollector(new PrintWriter(System.out));
+        Runnable metricsTask = () -> metricsCollector.collect(
+            programmers,
+            ordersQueue,
+            orchestratorConfig,
+            programmerConfig,
+            waiterConfig
+        );
+
+        return new Orchestrator(
+            programmers,
+            spoons,
+            waiters,
+            channels,
+            metricsTask,
+            orchestratorConfig.metricsPeriodMillis()
+        );
     }
 }

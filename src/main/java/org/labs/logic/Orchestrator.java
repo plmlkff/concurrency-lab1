@@ -13,6 +13,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Orchestrator {
@@ -23,18 +25,28 @@ public class Orchestrator {
     private final ExecutorService programmersExecutor;
     private final ExecutorService waitersExecutor;
     private final ExecutorService channelsExecutor;
+    private final ScheduledExecutorService metricsCollectorExecutor;
+    private final Runnable metricsTask;
+    private final long metricsPeriodMillis;
     private final AtomicBoolean started = new AtomicBoolean();
 
     public Orchestrator(
         List<Programmer> programmers,
         List<Spoon> spoons,
         List<Waiter> waiters,
-        List<SignalChannel> channels
+        List<SignalChannel> channels,
+        Runnable metricsTask,
+        long metricsPeriodMillis
     ) {
         this.programmers = List.copyOf(Objects.requireNonNull(programmers, "programmers"));
         this.spoons = List.copyOf(Objects.requireNonNull(spoons, "spoons"));
         this.waiters = List.copyOf(Objects.requireNonNull(waiters, "waiters"));
         this.channels = List.copyOf(Objects.requireNonNull(channels, "channels"));
+        this.metricsTask = Objects.requireNonNull(metricsTask, "metricsTask");
+        if (metricsPeriodMillis <= 0) {
+            throw new IllegalArgumentException("Metrics period must be positive");
+        }
+        this.metricsPeriodMillis = metricsPeriodMillis;
 
         if (this.programmers.size() < 2) {
             throw new IllegalArgumentException("At least two programmers are required");
@@ -52,6 +64,7 @@ public class Orchestrator {
         this.programmersExecutor = Executors.newFixedThreadPool(this.programmers.size());
         this.waitersExecutor = Executors.newFixedThreadPool(this.waiters.size());
         this.channelsExecutor = Executors.newVirtualThreadPerTaskExecutor();
+        this.metricsCollectorExecutor = Executors.newSingleThreadScheduledExecutor();
     }
 
     public void run() throws InterruptedException {
@@ -65,10 +78,17 @@ public class Orchestrator {
 
         try {
             startWorkers();
+            metricsCollectorExecutor.scheduleWithFixedDelay(
+                metricsTask,
+                0,
+                metricsPeriodMillis,
+                TimeUnit.MILLISECONDS
+            );
             while (remaining > 0) {
                 remaining -= runRound(stopped, start);
                 start = (start + 1) % programmers.size();
             }
+            printFinalMetrics();
         } finally {
             shutdownExecutors();
         }
@@ -162,7 +182,17 @@ public class Orchestrator {
         return false;
     }
 
+    private void printFinalMetrics() throws InterruptedException {
+        metricsCollectorExecutor.shutdown();
+        metricsCollectorExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        if (Thread.interrupted()) {
+            throw new InterruptedException();
+        }
+        metricsTask.run();
+    }
+
     private void shutdownExecutors() {
+        metricsCollectorExecutor.shutdownNow();
         channelsExecutor.shutdownNow();
         programmersExecutor.shutdownNow();
         waitersExecutor.shutdownNow();
