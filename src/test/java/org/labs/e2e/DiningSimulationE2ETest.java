@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DiningSimulationE2ETest {
     private static final Pattern HEADER = Pattern.compile(
-        "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}) \\| programmers="
+        "programmers=\\d+ \\| waiters="
     );
     private static final Pattern ROW = Pattern.compile(
         "(?m)^(\\d+)\\h+(DISCUSSING|READY|EATING|STOPPED)\\h+(\\d+)\\h*$"
