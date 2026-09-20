@@ -9,6 +9,7 @@ import org.labs.logic.metric.MetricsCollector;
 import org.labs.logic.order.Order;
 import org.labs.logic.order.OrderService;
 
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -23,6 +24,15 @@ public final class OrchestratorFactory {
         OrchestratorConfig orchestratorConfig,
         ProgrammerConfig programmerConfig,
         WaiterConfig waiterConfig
+    ) {
+       return create(orchestratorConfig, programmerConfig, waiterConfig, System.out);
+    }
+
+    public static Orchestrator create(
+        OrchestratorConfig orchestratorConfig,
+        ProgrammerConfig programmerConfig,
+        WaiterConfig waiterConfig,
+        OutputStream metricsOutputStream
     ) {
         var ordersQueue = new LinkedBlockingQueue<Order>();
         var orderService = new OrderService(ordersQueue);
@@ -52,7 +62,7 @@ public final class OrchestratorFactory {
             waiters.add(new Waiter(waiterConfig, ordersQueue, dishesLeft));
         }
 
-        var metricsCollector = new MetricsCollector(new PrintWriter(System.out));
+        var metricsCollector = new MetricsCollector(new PrintWriter(metricsOutputStream));
         Runnable metricsTask = () -> metricsCollector.collect(
             programmers,
             ordersQueue,
