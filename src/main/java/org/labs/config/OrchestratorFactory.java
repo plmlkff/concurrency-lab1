@@ -12,7 +12,7 @@ import org.labs.logic.order.OrderService;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,7 +34,7 @@ public final class OrchestratorFactory {
         WaiterConfig waiterConfig,
         OutputStream metricsOutputStream
     ) {
-        var ordersQueue = new LinkedBlockingQueue<Order>();
+        var ordersQueue = new LinkedTransferQueue<Order>();
         var orderService = new OrderService(ordersQueue);
         var dishesLeft = new AtomicInteger(orchestratorConfig.dishCapacity());
 

@@ -8,9 +8,7 @@ import org.labs.logic.order.OrderService;
 import org.labs.logic.order.OrderState;
 
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.function.Supplier;
 
 public class Programmer implements Runnable {
     private static final int LEFT = 0;
