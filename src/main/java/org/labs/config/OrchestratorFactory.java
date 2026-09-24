@@ -1,0 +1,82 @@
+package org.labs.config;
+
+import org.labs.domain.Programmer;
+import org.labs.domain.Spoon;
+import org.labs.domain.Waiter;
+import org.labs.logic.Orchestrator;
+import org.labs.logic.command.SignalChannel;
+import org.labs.logic.metric.MetricsCollector;
+import org.labs.logic.order.Order;
+import org.labs.logic.order.OrderService;
+
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public final class OrchestratorFactory {
+    public static Orchestrator create(
+        OrchestratorConfig orchestratorConfig,
+        ProgrammerConfig programmerConfig,
+        WaiterConfig waiterConfig
+    ) {
+       return create(orchestratorConfig, programmerConfig, waiterConfig, System.out);
+    }
+
+    public static Orchestrator create(
+        OrchestratorConfig orchestratorConfig,
+        ProgrammerConfig programmerConfig,
+        WaiterConfig waiterConfig,
+        OutputStream metricsOutputStream
+    ) {
+        var ordersQueue = new PriorityBlockingQueue<Order>();
+        var orderService = new OrderService(ordersQueue);
+        var dishesLeft = new AtomicInteger(orchestratorConfig.dishCapacity());
+
+        var spoons = new ArrayList<Spoon>();
+        for (int i = 0; i < orchestratorConfig.programmersCount(); i++) {
+            spoons.add(new Spoon(i));
+        }
+
+        var channels = new ArrayList<SignalChannel>();
+        var programmers = new ArrayList<Programmer>();
+        for (int i = 0; i < orchestratorConfig.programmersCount(); i++) {
+            var channel = new SignalChannel(new SynchronousQueue<>(), new SynchronousQueue<>());
+            channels.add(channel);
+            programmers.add(new Programmer(
+                programmerConfig,
+                spoons.get(i),
+                spoons.get((i + 1) % spoons.size()),
+                orderService,
+                channel,
+                orchestratorConfig.strategy()
+            ));
+        }
+
+        var waiters = new ArrayList<Waiter>();
+        for (int i = 0; i < orchestratorConfig.waitersCount(); i++) {
+            waiters.add(new Waiter(waiterConfig, ordersQueue, dishesLeft));
+        }
+
+        var metricsCollector = new MetricsCollector(new PrintWriter(metricsOutputStream));
+        Runnable metricsTask = () -> metricsCollector.collect(
+            programmers,
+            ordersQueue,
+            orchestratorConfig,
+            programmerConfig,
+            waiterConfig
+        );
+
+        return new Orchestrator(
+            programmers,
+            spoons,
+            waiters,
+            channels,
+            metricsTask,
+            orchestratorConfig.metricsPeriodMillis(),
+            orchestratorConfig.strategy()
+        );
+    }
+}
