@@ -1,10 +1,13 @@
 package org.labs.config;
 
+import org.labs.logic.Orchestrator;
+
 public record OrchestratorConfig(
     int programmersCount,
     int waitersCount,
     int dishCapacity,
-    long metricsPeriodMillis
+    long metricsPeriodMillis,
+    Orchestrator.OrchestrationStrategy strategy
 ) {
     public OrchestratorConfig {
         if (metricsPeriodMillis <= 0) {

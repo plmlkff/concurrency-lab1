@@ -10,7 +10,7 @@ public class OrderService {
         this.ordersQueue = ordersQueue;
     }
 
-    public void createOrder(Consumer<OrderState> callback) throws InterruptedException {
-        ordersQueue.put(new Order(callback));
+    public void createOrder(int priority, Consumer<OrderState> callback) throws InterruptedException {
+        ordersQueue.put(new Order(callback, priority));
     }
 }

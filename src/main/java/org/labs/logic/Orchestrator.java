@@ -9,6 +9,7 @@ import org.labs.logic.command.SignalChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -29,6 +30,7 @@ public class Orchestrator {
     private final Runnable metricsTask;
     private final long metricsPeriodMillis;
     private final AtomicBoolean started = new AtomicBoolean();
+    private final OrchestrationStrategy strategy;
 
     public Orchestrator(
         List<Programmer> programmers,
@@ -36,13 +38,14 @@ public class Orchestrator {
         List<Waiter> waiters,
         List<SignalChannel> channels,
         Runnable metricsTask,
-        long metricsPeriodMillis
+        long metricsPeriodMillis, OrchestrationStrategy strategy
     ) {
         this.programmers = List.copyOf(Objects.requireNonNull(programmers, "programmers"));
         this.spoons = List.copyOf(Objects.requireNonNull(spoons, "spoons"));
         this.waiters = List.copyOf(Objects.requireNonNull(waiters, "waiters"));
         this.channels = List.copyOf(Objects.requireNonNull(channels, "channels"));
         this.metricsTask = Objects.requireNonNull(metricsTask, "metricsTask");
+        this.strategy = Objects.requireNonNull(strategy);
         if (metricsPeriodMillis <= 0) {
             throw new IllegalArgumentException("Metrics period must be positive");
         }
@@ -72,10 +75,6 @@ public class Orchestrator {
             throw new IllegalStateException("Orchestrator can only be run once");
         }
 
-        var stopped = new boolean[programmers.size()];
-        int remaining = programmers.size();
-        int start = 0;
-
         try {
             startWorkers();
             metricsCollectorExecutor.scheduleWithFixedDelay(
@@ -84,14 +83,37 @@ public class Orchestrator {
                 metricsPeriodMillis,
                 TimeUnit.MILLISECONDS
             );
-            while (remaining > 0) {
-                remaining -= runRound(stopped, start);
-                start = (start + 1) % programmers.size();
+
+            switch (strategy) {
+                case ROUNDS -> runRoundStrategy();
+                case FULL_CONCURRENCY -> runFullConcurrencyStrategy();
             }
+
             printFinalMetrics();
         } finally {
             shutdownExecutors();
         }
+    }
+
+    private void runRoundStrategy() throws InterruptedException {
+        var stopped = new boolean[programmers.size()];
+        int start = 0;
+        int remaining = programmers.size();
+
+        while (remaining > 0) {
+            remaining -= runRound(stopped, start);
+            start = (start + 1) % programmers.size();
+        }
+    }
+
+    private void runFullConcurrencyStrategy() {
+        channels.stream().map(channel ->
+            channelsExecutor.submit(() -> waitNoFoodSignal(channel))
+        ).forEach(channel -> {
+            try {
+                channel.get();
+            } catch (Exception ignored) {}
+        });
     }
 
     private void startWorkers() {
@@ -162,6 +184,15 @@ public class Orchestrator {
         return channels.get(index).output().take();
     }
 
+    private Signal waitNoFoodSignal(SignalChannel channel) {
+        try {
+            while (channel.output().take() != Signal.NO_FOOD);
+            return Signal.NO_FOOD;
+        } catch (InterruptedException ignored) {
+            return Signal.NO_FOOD;
+        }
+    }
+
     private Signal waitForSignal(int index, Future<Signal> future) throws InterruptedException {
         try {
             return future.get();
@@ -196,5 +227,10 @@ public class Orchestrator {
         channelsExecutor.shutdownNow();
         programmersExecutor.shutdownNow();
         waitersExecutor.shutdownNow();
+    }
+
+    public enum OrchestrationStrategy {
+        ROUNDS,
+        FULL_CONCURRENCY
     }
 }

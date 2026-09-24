@@ -2,6 +2,7 @@ package org.labs.domain;
 
 
 import org.labs.config.ProgrammerConfig;
+import org.labs.logic.Orchestrator.OrchestrationStrategy;
 import org.labs.logic.command.Signal;
 import org.labs.logic.command.SignalChannel;
 import org.labs.logic.order.OrderService;
@@ -11,8 +12,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Programmer implements Runnable {
-    private static final int LEFT = 0;
-    private static final int RIGHT = 1;
+    private static final int MIN = 0;
+    private static final int MAX = 1;
 
     private volatile State state = State.DISCUSSING;
     private volatile int ateDishes = 0;
@@ -21,16 +22,18 @@ public class Programmer implements Runnable {
     private final OrderService orderService;
     private final SignalChannel channel;
     private final BlockingQueue<OrderState> waiterChannel = new LinkedBlockingQueue<>();
+    private final OrchestrationStrategy strategy;
 
     public Programmer(
         ProgrammerConfig config,
         Spoon left, Spoon right,
         OrderService orderService,
-        SignalChannel signalChannel
+        SignalChannel signalChannel, OrchestrationStrategy strategy
     ) {
         this.config = config;
-        this.spoons[LEFT] = left;
-        this.spoons[RIGHT] = right;
+        this.strategy = strategy;
+        this.spoons[MIN] = left.compareTo(right) < 0 ? left : right;
+        this.spoons[MAX] = spoons[MIN].equals(left) ? right : left;
         this.orderService = orderService;
         this.channel = signalChannel;
     }
@@ -61,6 +64,10 @@ public class Programmer implements Runnable {
     }
 
     private void waitEatSignal() throws InterruptedException {
+        if (strategy == OrchestrationStrategy.FULL_CONCURRENCY) {
+            state = State.EATING;
+            return;
+        }
         var signal = channel.input().take();
         if (!Signal.EAT.equals(signal)) throw new IllegalStateException("Signal <%s> is not supported in the input programmer channel.".formatted(signal));
         state = State.EATING;
@@ -70,22 +77,22 @@ public class Programmer implements Runnable {
         var orderState = waitOrder();
 
         if (orderState.equals(OrderState.NO_FOOD)) {
-            channel.output().put(Signal.NO_FOOD);
             state = State.STOPPED;
+            channel.output().put(Signal.NO_FOOD);
             return;
         }
 
         try {
-            spoons[LEFT].take();
-            spoons[RIGHT].take();
+            spoons[MIN].take();
+            spoons[MAX].take();
             Thread.sleep(config.eatingTime());
             ateDishes++;
         } finally {
-            spoons[LEFT].put();
-            spoons[RIGHT].put();
+            spoons[MIN].put();
+            spoons[MAX].put();
         }
         createOrder();
-        channel.output().put(Signal.DONE);
+        if (strategy == OrchestrationStrategy.ROUNDS) channel.output().put(Signal.DONE);
         state = State.DISCUSSING;
     }
 
@@ -94,7 +101,7 @@ public class Programmer implements Runnable {
     }
 
     private void createOrder() throws InterruptedException {
-        orderService.createOrder(waiterChannel::add);
+        orderService.createOrder(ateDishes, waiterChannel::add);
     }
 
     public int getAteDishes() {

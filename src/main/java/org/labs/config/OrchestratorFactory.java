@@ -12,14 +12,11 @@ import org.labs.logic.order.OrderService;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class OrchestratorFactory {
-    private OrchestratorFactory() {
-    }
-
     public static Orchestrator create(
         OrchestratorConfig orchestratorConfig,
         ProgrammerConfig programmerConfig,
@@ -34,13 +31,13 @@ public final class OrchestratorFactory {
         WaiterConfig waiterConfig,
         OutputStream metricsOutputStream
     ) {
-        var ordersQueue = new LinkedTransferQueue<Order>();
+        var ordersQueue = new PriorityBlockingQueue<Order>();
         var orderService = new OrderService(ordersQueue);
         var dishesLeft = new AtomicInteger(orchestratorConfig.dishCapacity());
 
         var spoons = new ArrayList<Spoon>();
         for (int i = 0; i < orchestratorConfig.programmersCount(); i++) {
-            spoons.add(new Spoon());
+            spoons.add(new Spoon(i));
         }
 
         var channels = new ArrayList<SignalChannel>();
@@ -53,7 +50,8 @@ public final class OrchestratorFactory {
                 spoons.get(i),
                 spoons.get((i + 1) % spoons.size()),
                 orderService,
-                channel
+                channel,
+                orchestratorConfig.strategy()
             ));
         }
 
@@ -77,7 +75,8 @@ public final class OrchestratorFactory {
             waiters,
             channels,
             metricsTask,
-            orchestratorConfig.metricsPeriodMillis()
+            orchestratorConfig.metricsPeriodMillis(),
+            orchestratorConfig.strategy()
         );
     }
 }

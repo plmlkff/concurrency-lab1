@@ -43,7 +43,8 @@ public class MetricsCollector {
 
         var report = new StringBuilder();
         report.append(String.format(
-            "programmers=%d | waiters=%d | discuss=%dms | eat=%dms | prepare=%dms%n",
+            "Strategy: %s | programmers=%d | waiters=%d | discuss=%dms | eat=%dms | prepare=%dms%n",
+            orchestratorConfig.strategy(),
             orchestratorConfig.programmersCount(),
             orchestratorConfig.waitersCount(),
             programmerConfig.discussionTime(),
@@ -75,7 +76,7 @@ public class MetricsCollector {
         int size
     ) {
         report.append(String.format(
-            "%s | orders: size=%d",
+            "%s | orders: size=%d\n",
             LocalDateTime.now().format(TIMESTAMP_FORMAT),
             size
         ));
